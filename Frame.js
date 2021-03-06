@@ -6,7 +6,8 @@ const compileModule = function (data, node, j, itemName) {//解析rooti的<>并�
         var value
         var contain = node.match(/(?<=<).+(?=>)/)[0] //不带括号
         var result = node.match(/<(.+)>/)[0] //带括号
-        if (result.match(itemName)) {
+        var reg = RegExp('^'+itemName+'(?=\.)')
+        if (itemName&&contain.match(reg)) {
             contain = contain.replace(itemName, 'array[' + j + ']')
             value = eval(contain)
         } else {
@@ -15,7 +16,6 @@ const compileModule = function (data, node, j, itemName) {//解析rooti的<>并�
         return node.replace(result, value)
     }
     return node
-
 }
 
 const traverseData = function (data, arr) {
@@ -129,7 +129,6 @@ const render = function (element, module) {         //检测for if on
                         var onWhat = root[i].on
                         var What = removeSpace(onWhat).match(/^\w+(?=<)/).join('')
                         var Function = method[removeSpace(onWhat).match(/(?<=<)\w+(?=>)/).join('')]
-                        var abc = document.querySelector('.abc')
                         var el = createElement(i, p)
                         el.addEventListener(What, Function)
                         traverse(root[i], el)
