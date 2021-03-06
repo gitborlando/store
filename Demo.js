@@ -5,25 +5,41 @@ var data = {
         { a: 'a2' },
         { a: 'a3' }
     ],
-    src: '../wedd'
+    src: '../wedd',
+    value: '数据绑定',
 }
 
 var tree = {
     div_box: {
-        p__demo: 'Demo',
-        div__xt: {
+        h1__demo: 'Demo',
+        h3__text: {
             for: 'ar in array',
             text: 'test is <ar.a>!!!',
             src: '<src>',
             li__dispaly: 'children'
         },
-        input__input: '双向数据绑定'
+        input__input: '<value>',
+        button: {
+            text: '点击',
+            on: 'click <click>'
+        }
+
     }
 }
 
-export default{
+var method = {
+    click
+}
+
+
+function click() {
+    alert('hello world')
+}
+
+export default {
     data,
-    tree
+    tree,
+    method
 }
 
 
