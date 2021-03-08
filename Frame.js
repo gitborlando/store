@@ -1,32 +1,12 @@
-
-const compileModule = function (data, node, j, itemName) {//解析rooti的<>并给rooti插值
-    if (node == null || node == undefined || node.constructor !== ''.constructor) return node
-    var have = node.match(/(?<=<).+(?=>)/) && !(node.match(/(?<=<<).+(?=>>)/))
-    if (have) {
-        var value
-        var contain = node.match(/(?<=<).+(?=>)/)[0] //不带括号
-        var result = node.match(/<(.+)>/)[0] //带括号
-        var reg = RegExp('^'+itemName+'(?=\.)')
-        if (itemName&&contain.match(reg)) {
-            contain = contain.replace(itemName, 'array[' + j + ']')
-            value = eval(contain)
-        } else {
-            value = eval('data.' + contain)
-        }
-        return node.replace(result, value)
-    }
-    return node
-}
-
-const traverseData = function (data, arr) {
+const findChainData = function (data, arr) {
     for (let k of Object.keys(data)) {
         if (arr == k) {
             return data[k]
         } else {
-            if (data[k].constructor !== {}.constructor || Object.keys(data[i]).length == 0) {
+            if (data[k].constructor !== {}.constructor || dataect.keys(data[i]).length == 0) {
                 continue
             } else {
-                return traverseData(data[k], arr)
+                return findChainData(data[k], arr)
             }
         }
     }
@@ -48,7 +28,7 @@ const removeSpace = function (node) {
 }
 
 const removeMumber = function (node) {
-    if (node.match(/^h\d(?=_)/)) return node
+    if (node.match(/^h\d(?=_)/) || node.match(/^h\d$/)) return node
     return node.match(/[^\d]/g).join('')
 }
 
@@ -61,7 +41,7 @@ const isTag = function (root) {
     return tagNames[root] == 1
 }
 
-const isFoeOnIf = function (node) {
+const isForOnIf = function (node) {
     var isframeInstructions = { for: 1, if: 1, on: 1 }
     return isframeInstructions[node] === 1
 }
@@ -94,65 +74,166 @@ HTMLElement.prototype.addClass = function (attribute) {
     }
 }
 
+const transfer = function (contain) {
+    var array = []
+    contain = contain.split('.')
+    contain.forEach((i) => {
+        array.push(`['${i}']`)
+    })
+    return array.join('')
+}
 
-const render = function (element, module) {         //检测for if on
-    let root = module.tree, data = module?.data, method = module?.method      //检测是否为tag
-    let fragment = document.createDocumentFragment()//检测是否为attr
-    traverse(root, fragment)
+const allotDataToAdd = function allotDataToValueOfTextNode(node, j, discription, data) {//解析rooti的<>并给rooti插值
+    if (node == null || node == undefined || node.constructor !== ''.constructor) return node
+    var have = node.match(/(?<=<).+(?=>)/) && !(node.match(/(?<=<<).+(?=>>)/))
+    if (have) {
+        if (discription) {
+            var array = findChainData(data, discription.slice(discription.search(/\s(\w+)$/) + 1, discription.length))//查找数组
+            var itemName = discription.match(/\w+/)[0]
+        }
+        var value
+        var contain = node.match(/(?<=<).+(?=>)/)[0] //不带括号
+        var result = node.match(/<(.+)>/)[0] //带括号
+        var reg = RegExp('^' + itemName + '(?=\.)')
+        if (itemName && contain.match(reg)) {
+            contain = contain.replace(itemName, 'array[' + j + ']')         
+            value = eval(contain)
+        } else {
+            contain = transfer(contain)
+            value = eval('data' + contain)
+        }
+        return node.replace(result, value)
+    }
+    return node
+}
+
+const allotAddToElement = function (element, i, textNode, j, discription, data) {
+    var toAdd = allotDataToAdd(textNode, j, discription, data)
+    if (!isTag(i) && i !== 'text') {
+        element.setAttribute(i, toAdd)
+    } else {
+        if (element.tagName == 'INPUT') {
+            element.value = toAdd
+        } else if (element.tagName == 'IMG') {
+            element.src = toAdd
+        } else {
+            element.innerHTML = toAdd
+        }
+    }
+}
+
+class Record {
+    constructor() {
+        this.map = new Map()
+    }
+    record(arr, el,) {
+        this.map.set(arr, el)
+        return el
+    }
+    findRecord(res) {
+        var reg = RegExp('(?<=<)' + res + '(?=>)')
+        for (var i of this.map.keys()) {
+            if (i[2].match(reg)) {
+                allotAddToElement(i[0], i[1], i[2], i[3], i[4], i[5])
+            }
+        }
+    }
+}
+var record = new Record()
+
+
+function findChain(data, key, parentKey) {   //root?array
+    if ((data.constructor !== {}.constructor)) return
+    for (var i in data) {
+        if (i == key) {
+            return key
+        } else {
+            let res = findChain(data[i], key, i)
+            if (res === undefined) {
+                continue
+            } else {
+                return i + '.' + res
+            }
+        }
+    }
+}
+var _data = {}
+export const observe = function (data) {
+    for (var i in data) {
+        if (data[i].constructor == {}.constructor ||
+            data[i].constructor == [].constructor) {
+            data[i] = observe(data[i])
+        }
+    }
+    return new Proxy(data, {
+        set(root, i, val, recv) {
+            Reflect.set(root, i, val, recv)
+            var res = findChain(_data, i)
+            record.findRecord(res)
+            return true
+        }
+    })
+}
+
+
+export const render = function (element, module) {
+    let root = module.tree, data = module?.data, method = module?.method
+    _data = data                             //检测是否为tag
+    let fragment = document.createDocumentFragment()
+    findChain(root, fragment)
     element.appendChild(fragment)
-    function traverse(root, p, j, itemName) { //递归根对象
+    function findChain(root, p, j, discription) { //递归根对象
         if (!(root.constructor == {}.constructor)) return
         for (let i in root) {
-            if (isTag(i)) {// 检测是否为标签
+            if (isTag(i)) {// 检测是标签
                 if (root[i].constructor !== {}.constructor) {//是标签但没有子项
-                    var el = createElement(i, p)
-                    var toAdd = compileModule(data, root[i], j)
-                    if (el.tagName == 'INPUT') {
-                        el.value = toAdd
-                    } else if (el.tagName == 'IMG') {
-                        el.src = toAdd
-                    } else {
-                        el.innerHTML = toAdd
-                    }
+                    var el = createElement(i, p)//生成节点和给节点添加值的过程分开了
+                    allotAddToElement(el, i, root[i], j, discription, data)
+                    record.record([el, i, root[i], j, discription, data], el)
                 } else { //是标签有子项
                     if (If(root[i])) {//检测有无if
                         continue
                     } else if (root[i].for !== undefined) {//检测有无for
-                        var description = root[i].for
-                        array = traverseData(data, description.slice(description.search(/\s(\w+)$/) + 1, description.length))//查找数组
-                        var itemName = description.match(/\w+/)[0]
+                        var discription = root[i].for
+                        var array = findChainData(data, discription.slice(discription.search(/\s(\w+)$/) + 1, discription.length))//查找数组
                         for (let j = 0; j < array.length; j++) {
                             var el = createElement(i, p)
-                            traverse(root[i], el, j, itemName)
+                            findChain(root[i], el, j, discription)
                         }
                     } else if (root[i].on !== undefined) {
                         var onWhat = root[i].on
                         var What = removeSpace(onWhat).match(/^\w+(?=<)/).join('')
                         var Function = method[removeSpace(onWhat).match(/(?<=<)\w+(?=>)/).join('')]
                         var el = createElement(i, p)
-                        el.addEventListener(What, Function)
-                        traverse(root[i], el)
+                        el.addEventListener(What, Function.bind(null, data))
+                        findChain(root[i], el)
                     } else {//for if on 都没有
                         var el = createElement(i, p)
-                        traverse(root[i], el)
+                        findChain(root[i], el, j, discription)
                     }
                 }
-            } else {
-                if (isFoeOnIf(i)) continue
-                var toAdd = compileModule(data, root[i], j, itemName)
-                if (i !== 'text') {
-                    p.setAttribute(i, toAdd)
-                } else {
-                    if (p.tagName == 'INPUT') {
-                        p.value = toAdd
-                    } else {
-                        p.innerHTML = toAdd
-                    }
-                }
+            } else {// 不是标签
+                if (isForOnIf(i)) continue
+                allotAddToElement(p, i, root[i], j, discription, data)
+                record.record([p, i, root[i], j, discription, data], p)
             }
         }
     }
 }
+
+
+
+
+
+
+// export default class Frame{
+//     constructor(){
+
+//     }
+//     static render = render
+//     static observe = observe
+// }
+
 
 
 

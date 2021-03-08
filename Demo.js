@@ -1,4 +1,4 @@
-
+import {observe} from './Frame.js'
 var data = {
     array: [
         { a: 'a1' },
@@ -6,24 +6,36 @@ var data = {
         { a: 'a3' }
     ],
     src: '../wedd',
-    value: '数据绑定',
+    value: '还行吧也就一个简简单单的框架',
+    demo:{
+        p:{
+            test:123
+        }
+    }
 }
+data = observe(data)
 
 var tree = {
     div_box: {
         h1__demo: 'Demo',
-        h3__text: {
+        div__text: {
             for: 'ar in array',
-            text: 'test is <ar.a>!!!',
             src: '<src>',
-            li__dispaly: 'children'
+            h3: 'h3的值是<ar.a>!!!',
+            li__dispaly: {
+                text:'li->娃节点',
+                p: {
+                    text:'p==<demo.p.test>!',
+                    src:'<src>'
+                }
+            }
         },
-        input__input: '<value>',
+        input: '<value>',
         button: {
             text: '点击',
             on: 'click <click>'
-        }
-
+        },
+        p: '<value>'
     }
 }
 
@@ -31,9 +43,8 @@ var method = {
     click
 }
 
-
 function click() {
-    alert('hello world')
+    data.p.test = '改了'
 }
 
 export default {
