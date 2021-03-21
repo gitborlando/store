@@ -1,4 +1,4 @@
-import Frame from "../../Frame.js"
+import Frame from "../Frame.js"
 
 const template = `
 div .sonComp  style{{background-color:pink;}} 

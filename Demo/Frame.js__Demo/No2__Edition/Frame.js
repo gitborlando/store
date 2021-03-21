@@ -259,15 +259,15 @@ export default class Frame {
         parent.parentNode.insertBefore(frag, parent)
         parent.parentNode.removeChild(parent)
     }
-    deliverProp(toAdd) {
-        let data = this.componentStore[0].component.data
+    deliverProp(each, toAdd) {
+        let data = each.component.data
         let chain = toAdd.prop[0].match(/(?<=\[').+(?='\])/)[0].trim()
         data[chain] = toAdd.prop[1]
     }
     componentMount() {
         if (this.componentStore.length > 0) {
             this.componentStore.forEach((each) => {
-                if(each.propValue) this.deliverProp(each.propValue)
+                if(each.propValue) this.deliverProp(each, each.propValue)
                 each.component.mount(each.el)
             })
         }

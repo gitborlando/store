@@ -1,4 +1,4 @@
-import Frame from "../../Frame.js"
+import Frame from "../Frame.js"
 
 const template = `
 div .daughterComp  style{{background-color:pink;border-top:1px solid black}} 
@@ -6,6 +6,7 @@ div .daughterComp  style{{background-color:pink;border-top:1px solid black}}
     input type{{text}} {{<value>}} .input3 @input=>input
     button {{这个按钮也点一下}} @click=>click  
     p {{<value>}} 
+    p {{<daughterComp>}}
     h2 {{End}}
 `
 export default new Frame({

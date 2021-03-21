@@ -1,4 +1,4 @@
-import Frame from "../../Frame.js"
+import Frame from "../Frame.js"
 import sonComp from './sonComp.js'
 import daughterComp from './daughterComp.js'
 
@@ -11,8 +11,8 @@ div .comp2 style{{background-color:skyBlue;padding:15px;width:550px;margin:auto;
         button {{点一下，son组件的JavaScript就会变成Node.js}} @click=>click 
     p {{<value>}} 
     sonComp @component=>sonComp prop{{<sonProp>}} 
-    daughterComp @component=>daughterComp 
-    h2 {{End}}
+    daughterComp @component=>daughterComp prop{{<daughterComp>}} 
+    h1 {{End}}
 `
 export default new Frame({
     template,
@@ -24,7 +24,8 @@ export default new Frame({
                 { item1: 'Html' },
                 { item1: 'Css' }
             ]
-        }
+        },
+        daughterComp:'女儿组件。。我有点佩服自己的脑洞'
     },
     component: {
         sonComp,
