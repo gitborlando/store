@@ -1,7 +1,3 @@
-//1.先弄数据在渲染：
-//2.改内容：innerHTML，class，attr|添加，删除元素，appendChild，removeChild
-
-
 class ParsetemplateToRoot {
     constructor(template) {
         let array = this.breaktemplateByLine(template)
@@ -25,12 +21,12 @@ class ParsetemplateToRoot {
     }
     getOrtiginnAttribute(discription) {
         let res = {}
-        if (discription.match(/(?<=\s+\.).+\s+/)) res.class = discription.match(/(?<=\s+\.).+\s+/)[0]
-        if (discription.match(/(?<=\s+#).+\s+/)) res.id = discription.match(/(?<=\s+#)[^\s]+(?=\s+)/)[0]
-        if (discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)) res.on = discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)[0]
-        if (discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)) res.for = discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)[0]
-        if (discription.match(/(?<=\s+){{.+}}/)) res.text = discription.match(/(?<=[\s+]{{)[^{}]+}}/)[0].match(/[^(}})]+/).join('')
-        if (discription.match(/(?<=\s*)\w+{{.+(?=}})/)) res[discription.match(/(?<=\s*)\w+(?={{|<)/)] = discription.match(/(?<=\w+({{))[^{}]+}}/)[0].match(/[^(}})]+/).join('')
+        if (discription.match(/(?<=\s+\.).+\s+/)) res.class = discription.match(/(?<=\s+\.).+\b\s+/)[0].trim()
+        if (discription.match(/(?<=\s+#).+\s+/)) res.id = discription.match(/(?<=\s+#)[^\s]+(?=\s+)/)[0].trim()
+        if (discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)) res.on = discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)[0].trim()
+        if (discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)) res.for = discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)[0].trim()
+        if (discription.match(/(?<=\s+){{.+}}/)) res.text = discription.match(/(?<=[\s+]{{)[^{}]+}}/)[0].match(/[^(}})]+/).join('').trim()
+        if (discription.match(/(?<=\s*)\w+{{.+(?=}})/)) res[discription.match(/(?<=\s*)\w+(?={{|<)/)] = discription.match(/(?<=\w+({{))[^{}]+}}/)[0].match(/[^(}})]+/).join('').trim()
         return res
     }
     allotDiscriptionToTagObj(arr) {
@@ -96,85 +92,31 @@ class FrameRegExp {
 }
 
 
-class FrameRecord {
-    constructor() {
-        this.store = {}
-        this.forStore = {}
-    }
-    record(chain, elPropObj) {
-        if (this.store[chain]) {
-            this.store[chain].push(elPropObj)
-        } else {
-            this.store[chain] = [elPropObj]
-        }
-    }
-    recordFor(chain, obj) {
-        if (this.forStore[chain]) {
-            for (let each of this.forStore[chain]) {
-                if (each.el == obj.el) {
-                    return
-                }
-            }
-            this.forStore[chain].push(obj)
-        } else {
-            this.forStore[chain] = [obj]
-        }
-    }
-    findRecord(chain, value,addValueToElement) {
-        chain = FrameRegExp.replaceStrToNumber(chain)
-        value = typeof value == 'number' ? Number(value) : value
-        let array = this.store[chain]
-        if (array) {
-            array.forEach((each) => {
-                let newValue = each.textNode.replace(each.origin, value)
-                addValueToElement(each.el, each.prop, newValue)
-            })
-            return true
-        }
-        return false
-    }
-    findRecordFor(chain, value,traverseCreate) {
-        chain = FrameRegExp.replaceStrToNumber(chain)
-        let array = this.forStore[chain]
-        value = typeof value == 'number' ? Number(value) : value
-        let nextSibling = null
-
-        for (let i = 0; i < array.length; i++) {
-            if (i == array.length - 1) {
-                nextSibling = array[i].el.nextElementSibling
-            }
-            array[i].el.remove()
-        }
-        let frag = document.createDocumentFragment()
-        traverseCreate([array[0].tagObj], frag)
-        if (!nextSibling) {
-            array[0].parent.appendChild(frag)
-        }
-        array[0].parent.insertBefore(frag, nextSibling)
-    }
-}
-
-
 export default class Frame {
     constructor(option) {
         this.template = option.template
         this.data = option.data || {}
+        this.prop = option.prop || {}
+        this.component = option.component || {}
         this.method = option.method || {}
         this._data = this.data
         this.store = {}
         this.forStore = {}
+        this.propStore = {}
+        this.componentStore = []
+        this.firstSet = 1
         this.data = this.observe(this.data)
         this.root = new ParsetemplateToRoot(this.template)
     }
     observe(data) {
-        for (var i in data) {
+        for (let i in data) {
             if (data[i].constructor == {}.constructor ||
                 data[i].constructor == [].constructor) {
                 data[i] = this.observe(data[i])
             }
         }
         return new Proxy(data, {
-            set:function(target, key, val, recv) {
+            set: function (target, key, val, recv) {
                 let _val = val
                 let res = this.findChain(this._data, key, target[key])
                 if (val.constructor == {}.constructor ||
@@ -248,14 +190,24 @@ export default class Frame {
                 let contain = FrameRegExp.getArrowBracket(tagObj[prop])[0]//abc
                 let origin = FrameRegExp.getArrowBracket(tagObj[prop])[1]//<abc>
                 toAdd = this.ifHaveForsItem(contain, arrayObj, { el, prop, origin, textNode: tagObj[prop] })
-                toAdd = tagObj[prop].replace(origin, toAdd)
+                if (toAdd.prop && toAdd.prop.constructor == [].constructor) {
+                    this.componentStore.find((i) => { return i.el == el }).propValue = toAdd
+                } else {
+                    toAdd = tagObj[prop].replace(origin, toAdd)
+                }
             }
             if (prop == 'on') {
                 let onStatement = tagObj.on
                 let functionName = FrameRegExp.arrow(onStatement)[1]
                 let Event = FrameRegExp.arrow(onStatement)[0]
-                let Function = this.allotFromMethod(functionName)[0]
-                el.addEventListener(Event, Function.bind(this))
+                if (Event == 'component') {
+                    let Component = this.allotFromComponent(functionName)[0]
+                    let tempObj = { el, component: Component }
+                    this.componentStore.push(tempObj)
+                } else {
+                    let Function = this.allotFromMethod(functionName)[0]
+                    el.addEventListener(Event, Function.bind(this))
+                }
             }
             this.addValueToElement(el, prop, toAdd)
         }
@@ -274,11 +226,6 @@ export default class Frame {
             el.setAttribute(prop, toAdd)
         }
     }
-    mount(parent) {
-        let frag = document.createDocumentFragment()
-        this.traverseCreate(this.root, frag)
-        parent.appendChild(frag)
-    }
     ifHaveForsItem(contain, arrayObj, elPropObj) {
         let result, toAdd, chain
         if (arrayObj) {
@@ -287,15 +234,43 @@ export default class Frame {
                 result = this.allotFromArray(contain.match(/(?<=\.).+(?=\s*)/)[0], arrayObj)
                 toAdd = result[0]
                 chain = result[1]
-                this.record(chain, elPropObj)
+                if (elPropObj.prop == 'prop') {
+                    toAdd = { prop: [chain, toAdd] }
+                } else {
+                    this.record(chain, elPropObj)
+                }
                 return toAdd
             }
         }
         result = this.allotFromData(contain)
         toAdd = result[0]
         chain = result[1]
-        this.record(chain, elPropObj)
+        if (elPropObj.prop == 'prop') {
+            toAdd = { prop: [chain, toAdd] }
+        } else {
+            this.record(chain, elPropObj)
+        }
         return toAdd
+    }
+    mount(parent) {
+        let frag = document.createDocumentFragment()
+        this.traverseCreate(this.root, frag)
+        this.componentMount()
+        parent.parentNode.insertBefore(frag, parent)
+        parent.parentNode.removeChild(parent)
+    }
+    deliverProp(toAdd) {
+        let data = this.componentStore[0].component.data
+        let chain = toAdd.prop[0].match(/(?<=\[').+(?='\])/)[0].trim()
+        data[chain] = toAdd.prop[1]
+    }
+    componentMount() {
+        if (this.componentStore.length > 0) {
+            this.componentStore.forEach((each) => {
+                if(each.propValue) this.deliverProp(each.propValue)
+                each.component.mount(each.el)
+            })
+        }
     }
     record(chain, elPropObj) {
         if (this.store[chain]) {
@@ -317,7 +292,7 @@ export default class Frame {
         }
     }
     findRecord(chain, value) {
-        chain = FrameRegExp.replaceStrToNumber(chain)
+        if (chain) chain = FrameRegExp.replaceStrToNumber(chain)
         value = typeof value == 'number' ? Number(value) : value
         let array = this.store[chain]
         if (array) {
@@ -330,23 +305,24 @@ export default class Frame {
         return false
     }
     findRecordFor(chain, value) {
-        chain = FrameRegExp.replaceStrToNumber(chain)
+        if (chain) chain = FrameRegExp.replaceStrToNumber(chain)
         let array = this.forStore[chain]
         value = typeof value == 'number' ? Number(value) : value
         let nextSibling = null
-
-        for (let i = 0; i < array.length; i++) {
-            if (i == array.length - 1) {
-                nextSibling = array[i].el.nextElementSibling
+        if (array) {
+            for (let i = 0; i < array.length; i++) {
+                if (i == array.length - 1) {
+                    nextSibling = array[i].el.nextElementSibling
+                }
+                array[i].el.remove()
             }
-            array[i].el.remove()
+            let frag = document.createDocumentFragment()
+            this.traverseCreate([array[0].tagObj], frag)
+            if (!nextSibling) {
+                array[0].parent.appendChild(frag)
+            }
+            array[0].parent.insertBefore(frag, nextSibling)
         }
-        let frag = document.createDocumentFragment()
-        this.traverseCreate([array[0].tagObj], frag)
-        if (!nextSibling) {
-            array[0].parent.appendChild(frag)
-        }
-        array[0].parent.insertBefore(frag, nextSibling)
     }
     ifHaveIf(el, prop, toAdd) {//局部渲染要知道tagObj，父el
         if (prop == 'if') {
@@ -372,6 +348,9 @@ export default class Frame {
     }
     allotFromMethod(contain) {
         return [eval(`this.method${this.transfer(contain)}`), `${this.transfer(contain)}`]
+    }
+    allotFromComponent(contain) {
+        return [eval(`this.component${this.transfer(contain)}`), `${this.transfer(contain)}`]
     }
     allotFromArray(contain, arrayObj) {
         let implement = `${this.transfer(arrayObj.forsArrayName)}[${arrayObj.index}]`
