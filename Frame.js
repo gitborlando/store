@@ -104,7 +104,6 @@ export default class Frame {
         this.forStore = {}
         this.propStore = {}
         this.componentStore = []
-        this.firstSet = 1
         this.data = this.observe(this.data)
         this.root = new ParsetemplateToRoot(this.template)
     }
@@ -126,6 +125,7 @@ export default class Frame {
                 Reflect.set(target, key, val, recv)
                 let result = this.findRecord(res, _val)
                 if (!result) {
+                    if (Object.keys(this.component).length !== 0) this.findRecordProp(res)
                     this.findRecordFor(res, _val)
                 }
                 this.updateData()
@@ -224,6 +224,7 @@ export default class Frame {
             }
         } else {
             el.setAttribute(prop, toAdd)
+            el.removeAttribute('on')
         }
     }
     ifHaveForsItem(contain, arrayObj, elPropObj) {
@@ -236,8 +237,10 @@ export default class Frame {
                 chain = result[1]
                 if (elPropObj.prop == 'prop') {
                     toAdd = { prop: [chain, toAdd] }
+                    this.recordProp(chain, elPropObj.el)
                 } else {
                     this.record(chain, elPropObj)
+
                 }
                 return toAdd
             }
@@ -247,6 +250,7 @@ export default class Frame {
         chain = result[1]
         if (elPropObj.prop == 'prop') {
             toAdd = { prop: [chain, toAdd] }
+            this.recordProp(chain, elPropObj.el)
         } else {
             this.record(chain, elPropObj)
         }
@@ -259,15 +263,15 @@ export default class Frame {
         parent.parentNode.insertBefore(frag, parent)
         parent.parentNode.removeChild(parent)
     }
-    deliverProp(toAdd) {
-        let data = this.componentStore[0].component.data
+    deliverProp(each, toAdd) {
         let chain = toAdd.prop[0].match(/(?<=\[').+(?='\])/)[0].trim()
-        data[chain] = toAdd.prop[1]
+        let data = each.component.data
+        data[chain] = this.deepClone(toAdd.prop[1])
     }
     componentMount() {
         if (this.componentStore.length > 0) {
             this.componentStore.forEach((each) => {
-                if(each.propValue) this.deliverProp(each.propValue)
+                if (each.propValue) this.deliverProp(each, each.propValue)
                 each.component.mount(each.el)
             })
         }
@@ -277,6 +281,13 @@ export default class Frame {
             this.store[chain].push(elPropObj)
         } else {
             this.store[chain] = [elPropObj]
+        }
+    }
+    recordProp(chain, el) {
+        if (this.propStore[chain]) {
+            this.propStore[chain].push(el)
+        } else {
+            this.propStore[chain] = [el]
         }
     }
     recordFor(chain, obj) {
@@ -293,7 +304,7 @@ export default class Frame {
     }
     findRecord(chain, value) {
         if (chain) chain = FrameRegExp.replaceStrToNumber(chain)
-        value = typeof value == 'number' ? Number(value) : value
+        value = typeof value == 'number' ? parseFloat(value) : value
         let array = this.store[chain]
         if (array) {
             array.forEach((each) => {
@@ -303,6 +314,20 @@ export default class Frame {
             return true
         }
         return false
+    }
+    findRecordProp(chain) {
+        if (chain) {
+            chain = FrameRegExp.replaceStrToNumber(chain)
+            let _chain = "['" + chain.match(/\[.+\]/)[0].match(/[^\[''\]]+/)[0] + "']"
+            let array = this.propStore[_chain]
+            if (array) {
+                array.forEach((each) => {
+                    let component = this.componentStore.find((i) => { return i.el == each })
+                    let data = component.component.data
+                    eval(`data${chain} = this.data${chain}`)
+                })
+            }
+        }
     }
     findRecordFor(chain, value) {
         if (chain) chain = FrameRegExp.replaceStrToNumber(chain)
@@ -322,9 +347,11 @@ export default class Frame {
                 array[0].parent.appendChild(frag)
             }
             array[0].parent.insertBefore(frag, nextSibling)
+            return true
         }
+        return false
     }
-    ifHaveIf(el, prop, toAdd) {//局部渲染要知道tagObj，父el
+    ifHaveIf(el, prop, toAdd) {
         if (prop == 'if') {
             if (![undefined, 1, 'true', true, '1'].includes(toAdd)) {
                 el.remove()
@@ -334,6 +361,20 @@ export default class Frame {
                 }
             }
         }
+    }
+    deepClone(originObj) {
+        if (typeof originObj !== 'object') return originObj
+        let obj = Array.isArray(originObj) ? [] : {}
+        for (let i in originObj) {
+            if (typeof originObj[i] === 'object') {
+                obj[i] = this.deepClone(originObj[i])
+            } else if (typeof originObj[i] === 'function') {
+                obj[i] = originObj[i].bind(obj)
+            } else {
+                obj[i] = originObj[i]
+            }
+        }
+        return obj
     }
     transfer(contain) {
         var array = []
