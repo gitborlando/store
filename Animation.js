@@ -156,3 +156,43 @@ HTMLElement.prototype.FrameAnimation = function (option) {
 //     if (p >= 1) d1.turnBack()() //if (p >= 1) turnBack()的作用是在动画结束后再原路返回,也接受一个回调函数和一个延迟时间
 // }, 3000) //3000=>延迟时间,可以单写一个函数,也可以单写一个时间,两个都写当然也可以
 // button.onclick = d1.stop() //动画停止
+
+HTMLElement.prototype.FrameRippleEffect = function (option) {
+    this.color = option.color
+    this.range = option.range
+    this.duration = option.duration
+    this.timing = option.timing
+    this.render = function (e) {
+        let cir = document.createElement('div')
+        cir.style['background-color'] = this.color
+        cir.style['border-radius'] = '50%'
+        cir.style['position'] = 'absolute'
+        cir.style['width'] = '1px'
+        cir.style['height'] = '1px'
+        cir.style['left'] = e.clientX - parseFloat(getComputedStyle(this).getPropertyValue('left')) + 'px'
+        cir.style['top'] = e.clientY - parseFloat(getComputedStyle(this).getPropertyValue('top')) + 'px'
+        this.appendChild(cir)
+        cir.FrameAnimation({
+            animation: [
+                { 'scale': this.range, timing: this.timing },
+                { 'opacity': '-1', timing: this.timing }
+            ],
+            duration: this.duration
+        }).startAnimation((p)=>{ if(p>=1) this.removeChild(cir) })()
+    }
+    this.addEventListener('mousedown', this.render)
+    this.addEventListener('mouseup', ()=>{
+        removeEventListener('mousedown', this.render)
+    })
+    this.style.overflow = 'hidden'
+    return this
+}
+
+/*Useage*/
+
+// btn.FrameRippleEffect({
+//     color: 'rgb(255, 255, 255, 0.7)',//波浪颜色
+//     range: '250', //波浪范围
+//     duration: 800, //波浪时间 //范围除时间就是波浪的速度
+//     timing: (p) => { return Math.sqrt(p) } //曲线函数
+// })
