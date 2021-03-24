@@ -1,10 +1,10 @@
-class ParsetemplateToRoot {
+class ParseTemplateToRoot {
     constructor(template) {
-        let array = this.breaktemplateByLine(template)
+        let array = this.breakTemplateByLine(template)
         let root = this.findParent(this.allotDiscriptionToTagObj(array))
         return root
     }
-    breaktemplateByLine(template) {
+    breakTemplateByLine(template) {
         let arr = []
         template = template.split('\n')
         for (let i in template) {
@@ -19,10 +19,14 @@ class ParsetemplateToRoot {
         }
         return arr
     }
-    getOrtiginnAttribute(discription) {
+    getOrtiginAttribute(discription) {
         let res = {}
-        if (discription.match(/(?<=\s+\.).+\s+/)) res.class = discription.match(/(?<=\s+\.).+\b\s+/)[0].trim()
-        if (discription.match(/(?<=\s+#).+\s+/)) res.id = discription.match(/(?<=\s+#)[^\s]+(?=\s+)/)[0].trim()
+        res.class = []
+        let classList = []
+        if (classList = discription.match(/(?<=\s+\.)(\w|\d|_|-)+\s+/g)) {
+            classList.forEach((i) => { res.class.push(i.trim()) })
+        }
+        if (discription.match(/(?<=\s+#).+\s+/g)) res.id.push(discription.match(/(?<=\s+#)[^\s]+(?=\s+)/g)[0].trim())
         if (discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)) res.on = discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)[0].trim()
         if (discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)) res.for = discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)[0].trim()
         if (discription.match(/(?<=\s+){{.+}}/)) res.text = discription.match(/(?<=[\s+]{{)[^{}]+}}/)[0].match(/[^(}})]+/).join('').trim()
@@ -31,7 +35,7 @@ class ParsetemplateToRoot {
     }
     allotDiscriptionToTagObj(arr) {
         for (let i of arr) {
-            let newObj = this.getOrtiginnAttribute(i.discription)
+            let newObj = this.getOrtiginAttribute(i.discription)
             for (let j in newObj) {
                 i[j] = newObj[j]
             }
@@ -97,15 +101,18 @@ export default class Frame {
         this.template = option.template
         this.data = option.data || {}
         this.prop = option.prop || {}
-        this.component = option.component || {}
         this.method = option.method || {}
+        this.component = option.component || {}
+        this.beforeMount = option.beforeMount || {}
+        this.data = typeof this.data === 'function' ? this.data() : this.data
         this._data = this.data
         this.store = {}
         this.forStore = {}
         this.propStore = {}
         this.componentStore = []
+        this.doSomthingBeforeMount()
         this.data = this.observe(this.data)
-        this.root = new ParsetemplateToRoot(this.template)
+        this.root = new ParseTemplateToRoot(this.template)   
     }
     observe(data) {
         for (let i in data) {
@@ -218,9 +225,20 @@ export default class Frame {
         if (prop == 'text') {
             if (el.tagName == 'INPUT') {
                 el.value = toAdd
-
             } else {
-                el.innerText = toAdd
+                if (['I'].includes(el.tagName)) {
+                    el.innerHTML = toAdd
+                } else {
+                    el.innerText = toAdd
+                }
+            }
+        } else if (prop == 'class') {
+            if (Array.isArray(toAdd)) {
+                toAdd.forEach((each) => {
+                    el.classList.add(each)
+                })
+            } else {
+                el.setAttribute(prop, toAdd)
             }
         } else {
             el.setAttribute(prop, toAdd)
@@ -262,6 +280,11 @@ export default class Frame {
         this.componentMount()
         parent.parentNode.insertBefore(frag, parent)
         parent.parentNode.removeChild(parent)
+    }
+    doSomthingBeforeMount(){
+        Object.entries(this.beforeMount).forEach((each)=>{
+            each[1].call(this)
+        })
     }
     deliverProp(each, toAdd) {
         let chain = toAdd.prop[0].match(/(?<=\[').+(?='\])/)[0].trim()
@@ -391,7 +414,7 @@ export default class Frame {
         return [eval(`this.method${this.transfer(contain)}`), `${this.transfer(contain)}`]
     }
     allotFromComponent(contain) {
-        return [eval(`this.component${this.transfer(contain)}`), `${this.transfer(contain)}`]
+        return [eval(`new Frame(this.component${this.transfer(contain)})`), `${this.transfer(contain)}`]
     }
     allotFromArray(contain, arrayObj) {
         let implement = `${this.transfer(arrayObj.forsArrayName)}[${arrayObj.index}]`
