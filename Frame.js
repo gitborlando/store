@@ -29,8 +29,8 @@ class ParseTemplateToRoot {
         if (discription.match(/(?<=\s+#).+\s+/g)) res.id.push(discription.match(/(?<=\s+#)[^\s]+(?=\s+)/g)[0].trim())
         if (discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)) res.on = discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)[0].trim()
         if (discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)) res.for = discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)[0].trim()
-        if (discription.match(/(?<=\s+){{.+}}/)) res.text = discription.match(/(?<=[\s+]{{)[^{}]+}}/)[0].match(/[^(}})]+/).join('').trim()
-        if (discription.match(/(?<=\s*)\w+{{.+(?=}})/)) res[discription.match(/(?<=\s*)\w+(?={{|<)/)] = discription.match(/(?<=\w+({{))[^{}]+}}/)[0].match(/[^(}})]+/).join('').trim()
+        if (discription.match(/(?<=\s+){{.+}}/)) res.text = discription.match(/(?<=[\s+]{{)[^{}]+}}/)[0].match(/[^}}]+/).join('').trim()
+        if (discription.match(/(?<=\s*)\w+{{.+(?=}})/)) res[discription.match(/(?<=\s*)\w+(?={{|<)/)] = discription.match(/(?<=\w+({{))[^{}]+}}/)[0].match(/[^}}]+/).join('').trim()
         return res
     }
     allotDiscriptionToTagObj(arr) {
@@ -101,9 +101,12 @@ export default class Frame {
         this.template = option.template
         this.data = option.data || {}
         this.prop = option.prop || {}
+        this.style = option.style || {}
         this.method = option.method || {}
         this.component = option.component || {}
         this.beforeMount = option.beforeMount || {}
+        this.afterMount = option.afterMount || {}
+        this.util = option.util || {}
         this.data = typeof this.data === 'function' ? this.data() : this.data
         this._data = this.data
         this.store = {}
@@ -244,6 +247,29 @@ export default class Frame {
             el.setAttribute(prop, toAdd)
             el.removeAttribute('on')
         }
+        this.addStyleToElement(el)
+    }
+    addStyleToElement(el){
+        const addStyle = (key)=>{
+            let oldStyle = el.getAttribute('style')
+            oldStyle = oldStyle !== null ? oldStyle : ''
+            if(oldStyle) oldStyle = oldStyle.match(/;$/) ? oldStyle : oldStyle + ';'
+            let newStyle = oldStyle + this.style[key] 
+            el.setAttribute('style', newStyle)
+        }
+        let keyList = Object.keys(this.style)
+        el.classList.forEach((i)=>{
+            i = `.${i}`
+            if(keyList.includes(i)){
+                addStyle(i)
+            }
+        })
+        if(keyList.includes(`${el.id}`)){
+            addStyle(`${el.id}`)
+        }
+        if(keyList.includes(el.tagName.toLowerCase())){
+            addStyle(el.tagName.toLowerCase())
+        }       
     }
     ifHaveForsItem(contain, arrayObj, elPropObj) {
         let result, toAdd, chain
@@ -279,11 +305,21 @@ export default class Frame {
         this.traverseCreate(this.root, frag)
         this.componentMount()
         parent.parentNode.insertBefore(frag, parent)
+        let _parent = parent.parentNode
         parent.parentNode.removeChild(parent)
+        this.doSomthingAfterMount(_parent) 
     }
     doSomthingBeforeMount(){
+        for(let each in this.util){
+            this.util[each] = this.util[each].bind(this)
+        }
         Object.entries(this.beforeMount).forEach((each)=>{
             each[1].call(this)
+        })
+    }
+    doSomthingAfterMount(parent){
+        Object.entries(this.afterMount).forEach((each)=>{
+            each[1].call(this,parent)
         })
     }
     deliverProp(each, toAdd) {
