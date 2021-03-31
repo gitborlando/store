@@ -23,14 +23,17 @@ class ParseTemplateToRoot {
         let res = {}
         res.class = []
         let classList = []
-        if (classList = discription.match(/(?<=\s+\.)(\w|\d|_|-)+\s+/g)) {
-            classList.forEach((i) => { res.class.push(i.trim()) })
-        }
+        let attribute = ''
+        if (classList = discription.match(/(?<=\s+\.)(\w|\d|_|-)+\s+/g)) classList.forEach((i) => { res.class.push(i.trim()) })
         if (discription.match(/(?<=\s+#).+\s+/g)) res.id.push(discription.match(/(?<=\s+#)[^\s]+(?=\s+)/g)[0].trim())
         if (discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)) res.on = discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)[0].trim()
         if (discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)) res.for = discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)[0].trim()
         if (discription.match(/(?<=\s+){{.+}}/)) res.text = discription.match(/(?<=[\s+]{{)[^{}]+}}/)[0].match(/[^}}]+/).join('').trim()
-        if (discription.match(/(?<=\s*)\w+{{.+(?=}})/)) res[discription.match(/(?<=\s*)\w+(?={{|<)/)] = discription.match(/(?<=\w+({{))[^{}]+}}/)[0].match(/[^}}]+/).join('').trim()
+        if (attribute = discription.match(/\s+\S+{{[^{}]+}}/g)) {
+            if (Array.isArray(attribute)) {
+                attribute.forEach((each) => { res[each.match(/.+(?={{)/)[0].trim()] = each.match(/(?<={{).+(?=}})/)[0].trim() })
+            } else { res[attribute[0].match(/.+(?={{)/)[0].trim()] = attribute[0].match(/(?<={{).+(?=}})/)[0].trim() }
+        }
         return res
     }
     allotDiscriptionToTagObj(arr) {
@@ -102,6 +105,7 @@ export default class Frame {
         this.data = option.data || {}
         this.prop = option.prop || {}
         this.style = option.style || {}
+        this.mediaStyle = option.mediaStyle || {}
         this.method = option.method || {}
         this.component = option.component || {}
         this.beforeMount = option.beforeMount || {}
@@ -113,24 +117,29 @@ export default class Frame {
         this.forStore = {}
         this.propStore = {}
         this.componentStore = []
+        this.componentRecord = new Map()
         this.doSomthingBeforeMount()
         this.data = this.observe(this.data)
-        this.root = new ParseTemplateToRoot(this.template)   
+        this.root = new ParseTemplateToRoot(this.template)
     }
     observe(data) {
         for (let i in data) {
-            if (data[i].constructor == {}.constructor ||
-                data[i].constructor == [].constructor) {
-                data[i] = this.observe(data[i])
+            if (data[i]) {
+                if (data[i].constructor == {}.constructor ||
+                    data[i].constructor == [].constructor) {
+                    data[i] = this.observe(data[i])
+                }
             }
         }
         return new Proxy(data, {
             set: function (target, key, val, recv) {
                 let _val = val
                 let res = this.findChain(this._data, key, target[key])
-                if (val.constructor == {}.constructor ||
-                    val.constructor == [].constructor) {
-                    val = this.observe(val)
+                if (val) {
+                    if (val.constructor == {}.constructor ||
+                        val.constructor == [].constructor) {
+                        val = this.observe(val)
+                    }
                 }
                 Reflect.set(target, key, val, recv)
                 let result = this.findRecord(res, _val)
@@ -200,22 +209,29 @@ export default class Frame {
                 let contain = FrameRegExp.getArrowBracket(tagObj[prop])[0]//abc
                 let origin = FrameRegExp.getArrowBracket(tagObj[prop])[1]//<abc>
                 toAdd = this.ifHaveForsItem(contain, arrayObj, { el, prop, origin, textNode: tagObj[prop] })
-                if (toAdd.prop && toAdd.prop.constructor == [].constructor) {
-                    this.componentStore.find((i) => { return i.el == el }).propValue = toAdd
-                } else {
-                    toAdd = tagObj[prop].replace(origin, toAdd)
+                if (toAdd) {
+                    if (toAdd.prop && toAdd.prop.constructor == [].constructor) {
+                        if (this.componentStore.find((i) => { return i.el == el })) {
+                            this.componentStore.find((i) => { return i.el == el }).propValue = toAdd
+                        }
+                    } else {
+                        toAdd = tagObj[prop].replace(origin, toAdd)
+                    }
                 }
             }
-            if (prop == 'on') {
+            if (prop === 'on') {
                 let onStatement = tagObj.on
                 let functionName = FrameRegExp.arrow(onStatement)[1]
                 let Event = FrameRegExp.arrow(onStatement)[0]
                 if (Event == 'component') {
                     let Component = this.allotFromComponent(functionName)[0]
-                    let tempObj = { el, component: Component }
-                    this.componentStore.push(tempObj)
+                    if (Component) {
+                        let componentObj = { el, name: functionName, component: Component }
+                        this.componentStore.push(componentObj)
+                    }
                 } else {
                     let Function = this.allotFromMethod(functionName)[0]
+                    el.addEventListener(Event, () => { this.curent = el })
                     el.addEventListener(Event, Function.bind(this))
                 }
             }
@@ -225,7 +241,7 @@ export default class Frame {
     }
     addValueToElement(el, prop, toAdd) {
         this.ifHaveIf(el, prop, toAdd)
-        if (prop == 'text') {
+        if (prop === 'text') {
             if (el.tagName == 'INPUT') {
                 el.value = toAdd
             } else {
@@ -235,7 +251,7 @@ export default class Frame {
                     el.innerText = toAdd
                 }
             }
-        } else if (prop == 'class') {
+        } else if (prop === 'class') {
             if (Array.isArray(toAdd)) {
                 toAdd.forEach((each) => {
                     el.classList.add(each)
@@ -243,33 +259,38 @@ export default class Frame {
             } else {
                 el.setAttribute(prop, toAdd)
             }
+        } else if (prop === 'html') {
+            el.innerHTML = toAdd
         } else {
             el.setAttribute(prop, toAdd)
             el.removeAttribute('on')
         }
         this.addStyleToElement(el)
     }
-    addStyleToElement(el){
-        const addStyle = (key)=>{
+    addStyleToElement(el) {
+        const addStyle = (key) => {
             let oldStyle = el.getAttribute('style')
             oldStyle = oldStyle !== null ? oldStyle : ''
-            if(oldStyle) oldStyle = oldStyle.match(/;$/) ? oldStyle : oldStyle + ';'
-            let newStyle = oldStyle + this.style[key] 
+            if (oldStyle) oldStyle = oldStyle.match(/;$/) ? oldStyle : oldStyle + ';'
+            let newStyle = oldStyle + this.style[key]
             el.setAttribute('style', newStyle)
         }
         let keyList = Object.keys(this.style)
-        el.classList.forEach((i)=>{
+        el.classList.forEach((i) => {
             i = `.${i}`
-            if(keyList.includes(i)){
+            if (keyList.includes(i)) {
                 addStyle(i)
             }
         })
-        if(keyList.includes(`${el.id}`)){
+        if (keyList.includes(`${el.id}`)) {
             addStyle(`${el.id}`)
         }
-        if(keyList.includes(el.tagName.toLowerCase())){
+        if (keyList.includes(el.tagName.toLowerCase())) {
             addStyle(el.tagName.toLowerCase())
-        }       
+        }
+    }
+    addMediaStyle() {
+
     }
     ifHaveForsItem(contain, arrayObj, elPropObj) {
         let result, toAdd, chain
@@ -300,26 +321,27 @@ export default class Frame {
         }
         return toAdd
     }
-    mount(parent) {
+    mount(parent, returnFrag) {
         let frag = document.createDocumentFragment()
         this.traverseCreate(this.root, frag)
+        if (returnFrag) returnFrag(frag.firstChild, parent.parentNode)
         this.componentMount()
         parent.parentNode.insertBefore(frag, parent)
         let _parent = parent.parentNode
         parent.parentNode.removeChild(parent)
-        this.doSomthingAfterMount(_parent) 
+        this.doSomthingAfterMount(_parent)
     }
-    doSomthingBeforeMount(){
-        for(let each in this.util){
+    doSomthingBeforeMount() {
+        for (let each in this.util) {
             this.util[each] = this.util[each].bind(this)
         }
-        Object.entries(this.beforeMount).forEach((each)=>{
+        Object.entries(this.beforeMount).forEach((each) => {
             each[1].call(this)
         })
     }
-    doSomthingAfterMount(parent){
-        Object.entries(this.afterMount).forEach((each)=>{
-            each[1].call(this,parent)
+    doSomthingAfterMount(parent) {
+        Object.entries(this.afterMount).forEach((each) => {
+            each[1].call(this, parent)
         })
     }
     deliverProp(each, toAdd) {
@@ -331,9 +353,27 @@ export default class Frame {
         if (this.componentStore.length > 0) {
             this.componentStore.forEach((each) => {
                 if (each.propValue) this.deliverProp(each, each.propValue)
-                each.component.mount(each.el)
+                each.component.mount(each.el, (child, parent) => {
+                    this.recordComponent(each.name, parent, child)
+                })
             })
         }
+    }
+    mountAComponent(componentName) {
+        if (this.componentStore.length > 0) {
+            let component = this.componentStore.find((i) => { return i.name === componentName })
+            if (component.propValue) this.deliverProp(component, component.propValue)
+            console.log(this.componentStore)
+            // component.component.mount(component.el, (child, parent) => {
+            //     this.recordComponent(component.name, parent, child)
+            // })
+        }
+    }
+    getComponent(component) {
+        return this.componentRecord.get(component).child
+    }
+    getComponentsParent(component) {
+        return this.componentRecord.get(component).parent
     }
     record(chain, elPropObj) {
         if (this.store[chain]) {
@@ -360,6 +400,9 @@ export default class Frame {
         } else {
             this.forStore[chain] = [obj]
         }
+    }
+    recordComponent(componentName, parent, child) {
+        this.componentRecord.set(componentName, { parent, child })
     }
     findRecord(chain, value) {
         if (chain) chain = FrameRegExp.replaceStrToNumber(chain)
@@ -450,6 +493,7 @@ export default class Frame {
         return [eval(`this.method${this.transfer(contain)}`), `${this.transfer(contain)}`]
     }
     allotFromComponent(contain) {
+        if (!eval(`this.component${this.transfer(contain)}`)) return [null, null]
         return [eval(`new Frame(this.component${this.transfer(contain)})`), `${this.transfer(contain)}`]
     }
     allotFromArray(contain, arrayObj) {
