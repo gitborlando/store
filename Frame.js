@@ -25,7 +25,7 @@ class ParseTemplateToRoot {
         let classList = []
         let attribute = ''
         if (classList = discription.match(/(?<=\s+\.)(\w|\d|_|-)+\s+/g)) classList.forEach((i) => { res.class.push(i.trim()) })
-        if (discription.match(/(?<=\s+#).+\s+/g)) res.id.push(discription.match(/(?<=\s+#)[^\s]+(?=\s+)/g)[0].trim())
+        if (discription.match(/(?<=\s+#).+\s+/g)) res.id = discription.match(/(?<=\s+#)[^\s]+(?=\s+)/g)[0].trim()
         if (discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)) res.on = discription.match(/(?<=@)[^\s]+(?=\s+|\b)/)[0].trim()
         if (discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)) res.for = discription.match(/(?<=\*)[^\s]+(?=\s+|\b)/)[0].trim()
         if (discription.match(/(?<=\s+){{.+}}/)) res.text = discription.match(/(?<=[\s+]{{)[^{}]+}}/)[0].match(/[^}}]+/).join('').trim()
@@ -325,11 +325,11 @@ export default class Frame {
         let frag = document.createDocumentFragment()
         this.traverseCreate(this.root, frag)
         if (returnFrag) returnFrag(frag.firstChild, parent.parentNode)
-        this.componentMount()
         parent.parentNode.insertBefore(frag, parent)
         let _parent = parent.parentNode
         parent.parentNode.removeChild(parent)
-        this.doSomthingAfterMount(_parent)
+        this.componentMount()
+        this.doSomthingAfterMount(_parent)      
     }
     doSomthingBeforeMount() {
         for (let each in this.util) {
